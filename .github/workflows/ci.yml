@@ -24,7 +24,6 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          # install from repo root requirements
           pip install -r ../requirements.txt
 
       - name: Run unit tests
@@ -83,9 +82,12 @@ jobs:
 
       - name: Promote registered model to Staging
         env:
-          MLFLOW_TRACKING_URI: "http://mlflow.ml.brain.cs.ait.ac.th/"
+          # >>> USE HTTPS and allow self-signed TLS <<<
+          MLFLOW_TRACKING_URI: "https://mlflow.ml.brain.cs.ait.ac.th/"
+          MLFLOW_TRACKING_INSECURE_TLS: "true"
           MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_USER }}
           MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_PASS }}
-          MLFLOW_MODEL_NAME: "st126055-a3-model"   # ✅ ensure this matches MLflow exactly
+          MLFLOW_MODEL_NAME: "st126055-a3-model"
           PROMOTE_MODE: "latest"
+          # MLFLOW_MODEL_VERSION: "3"   # only if PROMOTE_MODE="exact"
         run: python promote_mlflow.py
