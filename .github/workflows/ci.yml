@@ -7,7 +7,7 @@ on:
     branches: [ "main" ]
 
 jobs:
-  # --- JOB 1: Continuous Integration (tests) ---
+  # ---------- CI: run unit tests ----------
   test:
     runs-on: ubuntu-latest
     defaults:
@@ -19,24 +19,30 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"   # 3.10 is stable with most libs
+          python-version: "3.10"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; else pip install pytest numpy scikit-learn matplotlib; fi
+          # install from repo root requirements
+          pip install -r ../requirements.txt
 
       - name: Run unit tests
         run: pytest -q
 
-  # --- JOB 2: Continuous Deployment (Docker push) ---
-  deploy:
+  # ---------- CD path 1: Docker image push ----------
+  deploy_docker:
     runs-on: ubuntu-latest
     needs: test
-    # only push images on direct pushes to main, not on PRs
     if: ${{ needs.test.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set SHORT_SHA env
+        run: echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -47,12 +53,40 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push app image
+      - name: Build and push multi-arch image
         uses: docker/build-push-action@v6
         with:
           context: ./app
           file: ./app/Dockerfile
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/a3-app:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/a3-app:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/a3-app:${{ env.SHORT_SHA }}
+
+  # ---------- CD path 2: MLflow promotion to Staging ----------
+  promote_mlflow:
+    runs-on: ubuntu-latest
+    needs: test
+    if: ${{ needs.test.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install mlflow client
+        run: pip install mlflow
+
+      - name: Promote registered model to Staging
+        env:
+          MLFLOW_TRACKING_URI: "http://mlflow.ml.brain.cs.ait.ac.th/"
+          MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_USER }}
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_PASS }}
+          MLFLOW_MODEL_NAME: "st126055-a3-model"   # <-- change if your model name differs
+          PROMOTE_MODE: "latest"                   # or "exact" + set MLFLOW_MODEL_VERSION
+          # MLFLOW_MODEL_VERSION: "3"
+        run: python promote_mlflow.py

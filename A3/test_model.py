@@ -1,58 +1,44 @@
-import pytest
 import numpy as np
-# Make sure your LogisticRegression class is in a file named model.py
-# If it's in your notebook, you'll need to copy the class into a .py file.
-from model import LogisticRegression 
+import pytest
 
-# --- ARRANGE: A fixture to create and train a model once for all tests ---
-# A "fixture" is a setup function that pytest runs before your tests.
-@pytest.fixture
+from model import LogisticRegression  # make sure class name/file match your A3/model.py
+
+# --- Reproducible tiny dataset helper ---
+def _make_data(n=100, d=10, k=4, seed=0):
+    rng = np.random.default_rng(seed)
+    X = rng.normal(size=(n, d))
+    # create nontrivial labels via a random linear map
+    W = rng.normal(size=(d, k))
+    y = (X @ W).argmax(axis=1)
+    return X, y
+
+
+@pytest.fixture(scope="module")
 def trained_model():
-    """
-    Creates and trains a LogisticRegression model on simple mock data.
-    This trained model is then available to all test functions that need it.
-    """
-    # Arrange: Create simple mock data
-    X_train = np.random.rand(100, 10) # 100 samples, 10 features
-    y_train = np.random.randint(0, 4, 100) # 4 classes
-    
-    # Act: Train the model
-    model = LogisticRegression(n_iterations=10) # Train for a few iterations
-    model.fit(X_train, y_train)
-    
-    return model
+    """Train once and reuse across tests."""
+    X, y = _make_data(n=120, d=10, k=4, seed=42)
+    m = LogisticRegression(learning_rate=0.1, n_iterations=60, lmbda=0.01, batch_size=32)
+    m.fit(X, y)
+    return m
 
-# --- Test 1: Does the model handle the expected input shape correctly? ---
-def test_model_input_shape(trained_model):
-    """
-    Tests if the model's predict function runs without errors on an
-    input with the correct shape.pytest
-    """
-    # Arrange: Create mock data with the same number of features (10)
-    # The number of samples (5) can be different.
-    n_features = 10
-    X_test = np.random.rand(5, n_features)
-    
-    try:
-        # Act: Make a prediction
-        trained_model.predict(X_test)
-    except Exception as e:
-        # Assert: If any exception occurs, the test fails.
-        pytest.fail(f"Model prediction failed with valid input shape. Error: {e}")
 
-# --- Test 2: Does the model produce the expected output shape? ---
-def test_model_output_shape(trained_model):
+def test_model_accepts_expected_input(trained_model):
     """
-    Tests if the model's output has the correct shape, which should be
-    a 1D array with a length equal to the number of input samples.
+    (1) The model takes the expected input: correct feature count -> no error.
     """
-    # Arrange: Create mock test data
+    rng = np.random.default_rng(1)
+    X_ok = rng.normal(size=(5, 10))  # 10 features matches training
+    # If this raises, pytest will fail the test automatically
+    _ = trained_model.predict(X_ok)
+
+
+def test_output_shape_is_1d_len_n(trained_model):
+    """
+    (2) The model's output has the expected shape: (n_samples,).
+    """
+    rng = np.random.default_rng(2)
     n_samples = 15
-    n_features = 10
-    X_test = np.random.rand(n_samples, n_features)
-    
-    # Act: Make a prediction
-    predictions = trained_model.predict(X_test)
-    
-    # Assert: Check if the output shape is correct
-    assert predictions.shape == (n_samples,), f"Output shape was {predictions.shape}, expected {(n_samples,)}"
+    X = rng.normal(size=(n_samples, 10))
+    y_hat = trained_model.predict(X)
+    assert isinstance(y_hat, np.ndarray)
+    assert y_hat.shape == (n_samples,)
