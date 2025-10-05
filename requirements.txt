@@ -1,7 +1,9 @@
-pytest
-mlflow
 dash
-numpy
-pandas
+pandas==2.3.2
 scikit-learn
-joblib
+mlflow~=3.3.2
+defusedxml~=0.7.1
+numpy~=2.3.3
+psutil~=7.0.0
+scipy~=1.15.3
+
