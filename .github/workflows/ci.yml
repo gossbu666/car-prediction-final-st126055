@@ -89,5 +89,6 @@ jobs:
           MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_PASS }}
           MLFLOW_MODEL_NAME: "st126055-a3-model"
           PROMOTE_MODE: "latest"
-          # MLFLOW_MODEL_VERSION: "3"   # only if PROMOTE_MODE="exact"
+          MLFLOW_ALIAS_NAME: "staging"
+          
         run: python promote_mlflow.py
